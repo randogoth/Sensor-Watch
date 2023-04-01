@@ -26,6 +26,85 @@
 #include <string.h>
 #include "reminder_face.h"
 
+const char minutes[] = { 5, 10, 15, 20, 30, 40, 45, 50 }; // mins
+
+static void remind_me(reminder_state_t *state) {
+    watch_clear_display();
+    switch ( state->set ) {
+        case 0: // how often
+            switch ( state->how_often ) {
+                case REMINDER_IN:
+                    watch_display_string("in", 5);
+                    break;
+                case REMINDER_ON:
+                    watch_display_string("on", 5);
+                    break;
+                case REMINDER_EVERY:
+                    watch_display_string("every", 5);
+                    break;
+                case REMINDER_EACH:
+                    watch_display_string("each", 5);
+                    break;
+            }
+            break;
+        case 1: // when?
+            if ( state->how_often == REMINDER_IN || state->how_often == REMINDER_EVERY) {
+                state->options = 5;
+                switch ( state->when ) {
+                    case REMINDER_MINUTES:
+                        watch_display_string("mins", 5);
+                        break;
+                    case REMINDER_HOURS:
+                        watch_display_string("hours", 5);
+                        break;
+                    case REMINDER_DAYS:
+                        watch_display_string("days", 5);
+                        break;
+                    case REMINDER_WEEKS:
+                        watch_display_string("weeks", 5);
+                        break;
+                    case REMINDER_MONTHS:
+                        watch_display_string("monts", 5);
+                        break;
+                }
+            }
+            else if ( state->how_often == REMINDER_ON || state->how_often == REMINDER_EACH ) {
+                state->options = 7;
+                switch ( state->when ) {
+                    case 0:
+                        watch_display_string("  sun", 5);
+                        break;
+                    case 1:
+                        watch_display_string("  mon", 5);
+                        break;
+                    case 2:
+                        watch_display_string("  tue", 5);
+                        break;
+                    case 3:
+                        watch_display_string("  wen", 5);
+                        break;
+                    case 4:
+                        watch_display_string("  thu", 5);
+                        break;
+                    case 5:
+                        watch_display_string("  fri", 5);
+                        break;
+                    case 6:
+                        watch_display_string("  sat", 5);
+                        break;
+                }
+            }
+            break;
+        case 2: // units
+            if ( state->how_often == REMINDER_IN || state->how_often == REMINDER_EVERY ) {
+                break;
+            }
+            else if ( state->how_often == REMINDER_ON || state->how_often == REMINDER_EACH ) {
+                break;
+            }
+    }
+}
+
 void reminder_face_setup(movement_settings_t *settings, uint8_t watch_face_index, void ** context_ptr) {
     (void) settings;
     if (*context_ptr == NULL) {
@@ -48,7 +127,7 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
 
     switch (event.event_type) {
         case EVENT_ACTIVATE:
-            // Show your initial UI here.
+            watch_display_string("rmndme", 4);
             break;
         case EVENT_TICK:
             // If needed, update your display here.
@@ -59,7 +138,22 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
             // empty case for EVENT_LIGHT_BUTTON_DOWN.
             break;
         case EVENT_ALARM_BUTTON_UP:
-            // Just in case you have need for another button.
+            switch ( state->set ) {
+                case 0: // how often
+                    state->how_often = (state->how_often + 1) % 4;
+                    state->when = 0;
+                    break;
+                case 1: // timeframe
+                    state->when = (state->when + 1) % state->options;
+                    break;
+                case 2: // units
+                    state->units = (state->units + 1) % state->options;
+            }
+            remind_me(state);
+            break;
+        case EVENT_ALARM_LONG_PRESS:
+            state->set = (state->set + 1) % 2;
+            remind_me(state);
             break;
         case EVENT_TIMEOUT:
             // Your watch face will receive this event after a period of inactivity. If it makes sense to resign,

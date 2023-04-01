@@ -34,9 +34,28 @@
  *
  */
 
+typedef enum {
+    REMINDER_IN,
+    REMINDER_ON,
+    REMINDER_EVERY,
+    REMINDER_EACH
+} reminder_how_often;
+
+typedef enum {
+    REMINDER_MINUTES,
+    REMINDER_HOURS,
+    REMINDER_DAYS,
+    REMINDER_WEEKS,
+    REMINDER_MONTHS
+} reminder_when;
+
 typedef struct {
-    // Anything you need to keep track of, put it here!
-    uint8_t unused;
+    watch_date_time reminder[10];
+    uint8_t when;
+    uint8_t how_often;
+    uint8_t set;
+    uint8_t options;
+    uint8_t units;
 } reminder_state_t;
 
 void reminder_face_setup(movement_settings_t *settings, uint8_t watch_face_index, void ** context_ptr);
