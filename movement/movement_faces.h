@@ -84,6 +84,7 @@
 #include "world_clock2_face.h"
 #include "time_left_face.h"
 #include "dual_timer_face.h"
+#include "reminder_face.h"
 // New includes go above this line.
 
 #endif // MOVEMENT_FACES_H_
