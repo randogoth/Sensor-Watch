@@ -51,6 +51,8 @@ typedef enum {
 
 typedef struct {
     watch_date_time reminder[10];
+    uint8_t morning;
+    uint8_t afternoon;
     uint8_t index;
     bool first;
     uint8_t when;
