@@ -24,6 +24,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "watch_utility.h"
 #include "reminder_face.h"
 
 const uint8_t minutes[] = { 5, 10, 15, 20, 30, 40, 45, 50, 60, 70, 80, 90 }; // mins
@@ -131,6 +132,29 @@ static void remind_me(reminder_state_t *state) {
             break;
     }
     watch_display_string(buf, 0);
+}
+
+void set_reminder(reminder_state_t *state) {
+    state->index = (state->index + 1) % 16; // choose next reminder
+    state->reminder[state->index].reg = 0; // set it to 0
+    watch_date_time now = watch_rtc_get_date_time();
+    uint32_t epoch = watch_utility_date_time_to_unix_time(now, movement_timezone_offsets)
+    switch ( state->how_often ) {
+        case REMINDER_IN:
+            switch ( state->when ) {
+                case REMINDER_MINUTES:
+                    state->reminder[state->index] = watch_utility_offset_timestamp
+                case REMINDER_HOURS:
+                case REMINDER_DAYS:
+                case REMINDER_WEEKS:
+                case REMINDER_MONTHS:
+                    break;
+            }
+        case REMINDER_ON:
+        case REMINDER_EVERY:
+        case REMINDER_EACH:
+            break;
+    }
 }
 
 void reminder_face_setup(movement_settings_t *settings, uint8_t watch_face_index, void ** context_ptr) {
