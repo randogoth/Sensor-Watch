@@ -371,6 +371,7 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
             remind_me(settings, state);
             break;
         case EVENT_BACKGROUND_TASK:
+            movement_play_alarm();
             printf("ALARM!!!!!!!!!!\n");
             break;
         case EVENT_TIMEOUT:
