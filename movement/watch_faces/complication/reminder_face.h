@@ -51,11 +51,12 @@ typedef enum {
 
 typedef struct {
     watch_date_time reminder[10];
+    bool first;
     uint8_t when;
     uint8_t how_often;
     uint8_t set;
-    uint8_t options;
     uint8_t units;
+    uint8_t subunits;
 } reminder_state_t;
 
 void reminder_face_setup(movement_settings_t *settings, uint8_t watch_face_index, void ** context_ptr);
