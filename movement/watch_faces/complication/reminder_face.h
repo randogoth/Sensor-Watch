@@ -51,6 +51,8 @@ typedef enum {
 
 typedef struct {
     watch_date_time reminder[10];
+    bool active[10];
+    uint8_t repeat[10][4];
     uint8_t morning;
     uint8_t afternoon;
     uint8_t index;
@@ -66,13 +68,14 @@ void reminder_face_setup(movement_settings_t *settings, uint8_t watch_face_index
 void reminder_face_activate(movement_settings_t *settings, void *context);
 bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, void *context);
 void reminder_face_resign(movement_settings_t *settings, void *context);
+bool reminder_face_wants_background_task(movement_settings_t *settings, void *context);
 
 #define reminder_face ((const watch_face_t){ \
     reminder_face_setup, \
     reminder_face_activate, \
     reminder_face_loop, \
     reminder_face_resign, \
-    NULL, \
+    reminder_face_wants_background_task \
 })
 
 #endif // REMINDER_FACE_H_
