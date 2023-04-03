@@ -27,6 +27,9 @@
 #include <math.h>
 #include "watch_utility.h"
 #include "reminder_face.h"
+#if __EMSCRIPTEN__
+#include <time.h>
+#endif
 
 const uint8_t minutes[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 40, 45, 50, 60, 70, 80, 90 }; // mins
 const char the_hour[2][7] = { "on min", " sharp" };
@@ -36,6 +39,55 @@ const char the_month[4][7] = { "  on d", "   1st", "  15th", "  last"  };
 const char frame[4][3] = { "in", "on", "ev", "ea"};
 
 static void set_reminder(movement_settings_t *settings, reminder_state_t *state);
+
+static uint8_t get_random(uint8_t num_values) {
+    uint8_t random = 0;
+    do {
+        #if __EMSCRIPTEN__
+            srand(time(NULL));
+            random = rand() % num_values;
+        #else
+        random = arc4random_uniform(num_values);
+        #endif
+    } while ( random == 0 );
+}
+
+static uint32_t mnemonic_code(uint8_t num_digits) {
+    
+    uint32_t repeatingDigit = get_random(10);
+    uint32_t numRepeatingDigits = num_digits / 2;
+    uint32_t numNonRepeatingDigits = num_digits - numRepeatingDigits;
+    uint32_t digits[num_digits];
+
+    // Fill the first half of the array with the repeating digit
+    for (uint32_t i = 0; i < numRepeatingDigits; i++) {
+        digits[i] = repeatingDigit;
+    }
+
+    // Fill the second half of the array with random digits
+    for (uint32_t i = numRepeatingDigits; i < num_digits; i++) {
+        digits[i] = get_random(10);
+    }
+
+    // Shuffle the digits using the Fisher-Yates algorithm
+    for (uint32_t i = num_digits - 1; i > 0; i--) {
+        uint32_t j = get_random(i + 1);
+        uint32_t temp = digits[i];
+        digits[i] = digits[j];
+        digits[j] = temp;
+    }
+
+    // Combine the digits into a single integer
+    uint32_t result = 0;
+    for (uint32_t i = 0; i < num_digits; i++) {
+        result = result * 10 + digits[i];
+    }
+    return result;
+}
+
+void reset(reminder_state_t *state) {
+    state->set = state->how_often = state->when = state->units = state->subunits = 0;
+}
 
 static void remind_me(movement_settings_t *settings, reminder_state_t *state) {
 
@@ -128,8 +180,10 @@ static void remind_me(movement_settings_t *settings, reminder_state_t *state) {
                         break;
                     default:
                         state->set = 0;
-                        watch_display_string("    rmndme", 0);
+                        sprintf(buf, "Mn    %04d", (state->code = mnemonic_code(4)) );
+                        watch_display_string(buf, 0);
                         set_reminder(settings, state);
+                        //reset(state);
                         return;
                         break;
                 }
@@ -138,40 +192,12 @@ static void remind_me(movement_settings_t *settings, reminder_state_t *state) {
                 sprintf(buf, "%c%c%2d%s", frame[state->how_often][0], frame[state->how_often][1], count, the_day[state->subunits = state->subunits % 4]);
             }
             break;
-        case 3:
-            sprintf(buf, "    rmndme");
-            printf("how: %d, when: %d, units: %d, subunits: %d\n", state->how_often, state->when, state->units, state->subunits);
+        default:
+            sprintf(buf, "Mn    %04d", (state->code = mnemonic_code(4)) );
+            reset(state);
             break;
     }
     watch_display_string(buf, 0);
-}
-
-static uint8_t get_random(uint8_t num_values) {
-    // Emulator: use rand. Hardware: use arc4random.
-#if __EMSCRIPTEN__
-    return rand() % num_values;
-#else
-    return arc4random_uniform(num_values);
-#endif
-}
-
-static uint16_t mnemonic_code() {
-    uint8_t digit1 = get_random(10);
-    uint8_t digit2 = get_random(10);
-    uint8_t digit3 = get_random(10);
-    uint8_t digit4 = get_random(10);
-    uint8_t repeated_digit;
-    uint8_t repeat_pos = get_random(3);
-
-    if (repeat_pos == 0) {
-        digit1 = repeated_digit;
-    } else if (repeat_pos == 1) {
-        digit2 = repeated_digit;
-    } else {
-        digit3 = repeated_digit;
-    }
-int16_t combined_number = (int16_t) (digit1 * 100 + digit2 * 10 + digit3); // Combine the digits into a three-digit number
-combined_number = combined_number * 10 + repeated_digit;  // Repeat the chosen digit to make a four-digit number
 }
 
 static void set_reminder(movement_settings_t *settings, reminder_state_t *state) {
@@ -181,8 +207,8 @@ static void set_reminder(movement_settings_t *settings, reminder_state_t *state)
             continue;
         }
     }
-    state->morning = 8;
-    state->afternoon = 16;
+    state->mnemo[state->index] = state->code;
+    state->code = 0;
     state->reminder[state->index].reg = 0; // set it to 0
     int16_t tz = (movement_timezone_offsets[settings->bit.time_zone]) / 60;
     uint8_t weekday; // monday is 1
@@ -316,15 +342,11 @@ static void set_reminder(movement_settings_t *settings, reminder_state_t *state)
             break;
     }
     state->active[state->index] = true;
-    printf("%d | [%d]: %d, %d/%d/%d %02d:%02d:%02d\n", mnemonic_code(), state->index,
+    printf("%d | [%d]: %d, %d/%d/%d %02d:%02d:%02d\n", state->mnemo[state->index], state->index,
         watch_utility_get_iso8601_weekday_number( state->reminder[state->index].unit.year, state->reminder[state->index].unit.month, state->reminder[state->index].unit.day),
         state->reminder[state->index].unit.day, state->reminder[state->index].unit.month, state->reminder[state->index].unit.year,
         state->reminder[state->index].unit.hour, state->reminder[state->index].unit.minute, state->reminder[state->index].unit.second
     );
-}
-
-void reset(reminder_state_t *state) {
-    state->set = state->how_often = state->when = state->units = state->subunits = 0;
 }
 
 void reminder_face_setup(movement_settings_t *settings, uint8_t watch_face_index, void ** context_ptr) {
@@ -334,22 +356,30 @@ void reminder_face_setup(movement_settings_t *settings, uint8_t watch_face_index
         memset(*context_ptr, 0, sizeof(reminder_state_t));
         // Do any one-time tasks in here; the inside of this conditional happens only at boot.
     }
+    reminder_state_t *state = (reminder_state_t *)*context_ptr;
+    state->code = 0;
+    state->morning = 8;
+    state->afternoon = 16;
     // Do any pin or peripheral setup here; this will be called whenever the watch wakes from deep sleep.
 }
 
 void reminder_face_activate(movement_settings_t *settings, void *context) {
     (void) settings;
     reminder_state_t *state = (reminder_state_t *)context;
-
     // Handle any tasks related to your watch face coming on screen.
 }
 
 bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, void *context) {
     reminder_state_t *state = (reminder_state_t *)context;
-
+    char mnemonic[5];
     switch (event.event_type) {
         case EVENT_ACTIVATE:
-            watch_display_string("rmndme", 4);
+            if ( state->code > 0 ) {
+                sprintf(mnemonic, "MN    %d", state->code);
+                watch_display_string(mnemonic, 0);
+            } else {
+                watch_display_string("rmndme", 4);
+            }
             break;
         case EVENT_TICK:
             // If needed, update your display here.
@@ -367,6 +397,7 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
             switch ( state->set ) {
                 case 0: // how often
                     state->how_often = (state->how_often + 1) % 4;
+                    state->code = 0;
                     break;
                 case 1: // timeframe
                     state->when = (state->when + 1) % 
@@ -394,14 +425,13 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                     break;
                 default:
                     set_reminder(settings, state);
-                    reset(state);
                     break;
             }
             remind_me(settings, state);
             break;
         case EVENT_BACKGROUND_TASK:
             movement_play_alarm();
-            printf("ALARM!!!!!!!!!!\n");
+            printf("ALARM %d\n", state->code);
             break;
         case EVENT_TIMEOUT:
             // Your watch face will receive this event after a period of inactivity. If it makes sense to resign,
@@ -451,6 +481,7 @@ bool reminder_face_wants_background_task(movement_settings_t *settings, void *co
                         if (state->reminder[i].unit.month == now.unit.month) {
                             if (state->reminder[i].unit.year == now.unit.year) {
                                 state->active[i] = false;
+                                state->code = state->mnemo[i];
                                 if ( state->repeat[i][0] > REMINDER_ON ) { // do we need to repeat it?
                                     state->how_often = state->repeat[i][0];
                                     state->when = state->repeat[i][1];
