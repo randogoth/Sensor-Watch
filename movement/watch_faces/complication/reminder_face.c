@@ -37,19 +37,18 @@ const char the_day[4][7] = { " on t", "mornin", "  noon", "afnoon" };
 const char the_week[7][7] = { "on d", "   sun", "   mon", "   tue", "   wed", "   thu", "   fri", "   sat",  };
 const char the_month[4][7] = { "  on d", "   1st", "  15th", "  last"  };
 const char frame[4][3] = { "in", "on", "ev", "ea"};
+const char month[12][3] = { "JA", "FE", "MR", "AP", "M4", "JN", "JL", "AU", "SE", "OC", "NO", "DE" };
 
 static void set_reminder(movement_settings_t *settings, reminder_state_t *state);
 
 static uint8_t get_random(uint8_t num_values) {
     uint8_t random = 0;
-    do {
-        #if __EMSCRIPTEN__
-            srand(time(NULL));
-            random = rand() % num_values;
-        #else
-        random = arc4random_uniform(num_values);
-        #endif
-    } while ( random == 0 );
+    #if __EMSCRIPTEN__
+        random = rand() % num_values;
+    #else
+    random = arc4random_uniform(num_values);
+    #endif
+    return random;
 }
 
 static uint32_t mnemonic_code(uint8_t num_digits) {
@@ -103,87 +102,94 @@ static void remind_me(movement_settings_t *settings, reminder_state_t *state) {
     switch ( state->set ) {
         case 0: // how often
             switch ( state->how_often ) {
-                case REMINDER_IN:
-                    sprintf(buf, "  %2d    in", count);
-                    break;
-                case REMINDER_ON:
-                    sprintf(buf, "  %2d    on", count );
-                    break;
-                case REMINDER_EVERY:
-                    sprintf(buf, "  %2d every", count );
-                    break;
-                case REMINDER_EACH:
-                    sprintf(buf, "  %2d  each", count );
-                    break;
+                case REMINDER_IN:    sprintf(buf, "  %2d    in", count); break;
+                case REMINDER_ON:    sprintf(buf, "  %2d    on", count); break;
+                case REMINDER_EVERY: sprintf(buf, "  %2d every", count); break;
+                case REMINDER_EACH:  sprintf(buf, "  %2d  each", count); break;
             }
             break;
         case 1: // when?
             if ( state->how_often == REMINDER_IN || state->how_often == REMINDER_EVERY) {
                 switch ( state->when ) {
                     case REMINDER_MINUTES:
-                        sprintf(buf, "%c%c%2d%02d min", frame[state->how_often][0], frame[state->how_often][1], count, minutes[(state->units = state->units % 20)]);
+                        sprintf(buf, "%c%c%2d%02d min", 
+                            frame[state->how_often][0], frame[state->how_often][1], 
+                            count, minutes[(state->units = state->units % 20)]
+                        );
                         break;
                     case REMINDER_HOURS:
-                        sprintf(buf, "%c%c%2d%02d hrs", frame[state->how_often][0], frame[state->how_often][1], count, (state->units = (state->units % 24)) + 1);
+                        sprintf(buf, "%c%c%2d%02d hrs", 
+                            frame[state->how_often][0], frame[state->how_often][1], 
+                            count, (state->units = (state->units % 24)) + 1
+                        );
                         break;
                     case REMINDER_DAYS:
-                        sprintf(buf, "%c%c%2d%02d dys", frame[state->how_often][0], frame[state->how_often][1], count, (state->units = (state->units % 30)) + 1);
+                        sprintf(buf, "%c%c%2d%02d dys", 
+                            frame[state->how_often][0], frame[state->how_often][1], 
+                            count, (state->units = (state->units % 30)) + 1
+                        );
                         break;
                     case REMINDER_WEEKS:
-                        sprintf(buf, "%c%c%2d%02d wks", frame[state->how_often][0], frame[state->how_often][1], count, (state->units = (state->units % 4)) + 1);
+                        sprintf(buf, "%c%c%2d%02d wks", 
+                            frame[state->how_often][0], frame[state->how_often][1], 
+                            count, (state->units = (state->units % 4)) + 1
+                        );
                         break;
                     case REMINDER_MONTHS:
-                        sprintf(buf, "%c%c%2d%02d mth", frame[state->how_often][0], frame[state->how_often][1], count, (state->units = (state->units % 12)) + 1);
+                        sprintf(buf, "%c%c%2d%02d mth", 
+                            frame[state->how_often][0], frame[state->how_often][1], 
+                            count, (state->units = (state->units % 12)) + 1
+                        );
                         break;
                 }
             }
             else if ( state->how_often == REMINDER_ON || state->how_often == REMINDER_EACH ) {
+                char day[4];
                 switch ( state->when ) {
-                    case 0:
-                        sprintf(buf, "%c%c%2d   sun", frame[state->how_often][0], frame[state->how_often][1], count );
-                        break;
-                    case 1:
-                        sprintf(buf, "%c%c%2d   mon", frame[state->how_often][0], frame[state->how_often][1], count);
-                        break;
-                    case 2:
-                        sprintf(buf, "%c%c%2d   tue", frame[state->how_often][0], frame[state->how_often][1], count);
-                        break;
-                    case 3:
-                        sprintf(buf, "%c%c%2d   wed", frame[state->how_often][0], frame[state->how_often][1], count);
-                        break;
-                    case 4:
-                        sprintf(buf, "%c%c%2d   thu", frame[state->how_often][0], frame[state->how_often][1], count);
-                        break;
-                    case 5:
-                        sprintf(buf, "%c%c%2d   fri", frame[state->how_often][0], frame[state->how_often][1], count);
-                        break;
-                    case 6:
-                        sprintf(buf, "%c%c%2d   sat", frame[state->how_often][0], frame[state->how_often][1], count);
-                        break;
+                    case 0: sprintf(day, "sun"); break;
+                    case 1: sprintf(day, "mon"); break;
+                    case 2: sprintf(day, "tue"); break;
+                    case 3: sprintf(day, "wed"); break;
+                    case 4: sprintf(day, "thu"); break;
+                    case 5: sprintf(day, "fri"); break;
+                    case 6: sprintf(day, "sat"); break;
                 }
+                sprintf(buf, "%c%c%2d   %3s", frame[state->how_often][0], frame[state->how_often][1], count, day );
             }
             break;
         case 2:
             if ( state->how_often == REMINDER_IN || state->how_often == REMINDER_EVERY) {
                 switch ( state->when ) {
                     case REMINDER_HOURS: // sharp, same minute
-                        sprintf(buf, "%c%c%2d%s", frame[state->how_often][0], frame[state->how_often][1], count, the_hour[(state->subunits = state->subunits % 2)]);
+                        sprintf(buf, "%c%c%2d%s", 
+                            frame[state->how_often][0], frame[state->how_often][1], 
+                            count, the_hour[(state->subunits = state->subunits % 2)]
+                        );
                         break;
                     case REMINDER_DAYS: // morning, noon, afternoon, same time
-                        sprintf(buf, "%c%c%2d%s", frame[state->how_often][0], frame[state->how_often][1], count, the_day[(state->subunits = state->subunits % 4)]);
+                        sprintf(buf, "%c%c%2d%s", 
+                            frame[state->how_often][0], frame[state->how_often][1], 
+                            count, the_day[(state->subunits = state->subunits % 4)]
+                        );
                         break;
                     case REMINDER_WEEKS: // sun, mon, tue, wed, thu, fri, sat
-                        sprintf(buf, "%c%c%2d%s", frame[state->how_often][0], frame[state->how_often][1], count, the_week[(state->subunits = state->subunits % 8)]);
+                        sprintf(buf, "%c%c%2d%s", 
+                            frame[state->how_often][0], frame[state->how_often][1], 
+                            count, the_week[(state->subunits = state->subunits % 8)]
+                        );
                         break;
                     case REMINDER_MONTHS: // 1st, same day
-                        sprintf(buf, "%c%c%2d%s", frame[state->how_often][0], frame[state->how_often][1], count, the_month[(state->subunits = state->subunits % 4)]);
+                        sprintf(buf, "%c%c%2d%s", 
+                            frame[state->how_often][0], frame[state->how_often][1], 
+                            count, the_month[(state->subunits = state->subunits % 4)]
+                        );
                         break;
                     default:
                         state->set = 0;
                         sprintf(buf, "Mn    %04d", (state->code = mnemonic_code(4)) );
                         watch_display_string(buf, 0);
                         set_reminder(settings, state);
-                        //reset(state);
+                        reset(state);
                         return;
                         break;
                 }
@@ -192,10 +198,30 @@ static void remind_me(movement_settings_t *settings, reminder_state_t *state) {
                 sprintf(buf, "%c%c%2d%s", frame[state->how_often][0], frame[state->how_often][1], count, the_day[state->subunits = state->subunits % 4]);
             }
             break;
-        default:
+        case 3: // show mnemonic cipher
             sprintf(buf, "Mn    %04d", (state->code = mnemonic_code(4)) );
+            set_reminder(settings, state);
             reset(state);
             break;
+        case 4: // setup
+            if ( state->when < 2 ) {
+                if ( state->active[state->index] ) watch_set_indicator(WATCH_INDICATOR_BELL);
+                else watch_clear_indicator(WATCH_INDICATOR_BELL);
+                if ( state->repeat[state->index][0] > 1 )
+                    watch_set_indicator(WATCH_INDICATOR_LAP);
+                else watch_clear_indicator(WATCH_INDICATOR_LAP);
+                if ( state->when == 0 ) {
+                    sprintf(buf, "%-2d%2d%02d%02d%2d",
+                        state->reminder[state->index].unit.month,
+                        state->reminder[state->index].unit.day,
+                        state->reminder[state->index].unit.hour,
+                        state->reminder[state->index].unit.minute,
+                        state->index + 1
+                    );
+                }
+                if ( state->when == 1 ) // mnemonic code
+                    sprintf(buf, "  %2d  %04d", state->index + 1, state->mnemo[state->index]);
+            }
     }
     watch_display_string(buf, 0);
 }
@@ -204,7 +230,7 @@ static void set_reminder(movement_settings_t *settings, reminder_state_t *state)
     for ( uint8_t i; i < 10; i++) {
         if ( state->active[i] == false) {
             state->index = i;
-            continue;
+            break;
         }
     }
     state->mnemo[state->index] = state->code;
@@ -234,24 +260,15 @@ static void set_reminder(movement_settings_t *settings, reminder_state_t *state)
                     break;
                 case REMINDER_DAYS:
                     state->reminder[state->index] = watch_utility_date_time_from_unix_time(epoch + 86400 * (state->units + 1), tz);
-                    switch ( state->subunits ) {
-                        case 1: // morning
+                    if ( state->subunits > 0 ) {
+                        state->reminder[state->index].unit.minute = 0;
+                        state->reminder[state->index].unit.second = 0;
+                        if ( state->subunits > 1 ) // morning
                             state->reminder[state->index].unit.hour = state->morning;
-                            state->reminder[state->index].unit.minute = 0;
-                            state->reminder[state->index].unit.second = 0;
-                            break;
-                        case 2: // noon
+                        if ( state->subunits > 2 ) // noon
                             state->reminder[state->index].unit.hour = 12;
-                            state->reminder[state->index].unit.minute = 0;
-                            state->reminder[state->index].unit.second = 0;
-                            break;
-                        case 3: // afternoon
+                        if ( state->subunits > 3 ) // afternoon
                             state->reminder[state->index].unit.hour = state->afternoon;
-                            state->reminder[state->index].unit.minute = 0;
-                            state->reminder[state->index].unit.second = 0;
-                            break;
-                        default: // on time
-                            break;
                     }
                     break;
                 case REMINDER_WEEKS:
@@ -273,30 +290,14 @@ static void set_reminder(movement_settings_t *settings, reminder_state_t *state)
                     now.unit.minute = 0;
                     now.unit.second = 0;
                     switch ( state->subunits ) {
-                        case 1: // 1st
-                            now.unit.day = 1;
-                            break;
-                        case 2: // 15th
-                            now.unit.day = 15;
-                            break;
-                        case 3: // last
-                            switch ( now.unit.month ) {
-                                case 2:
-                                    now.unit.day = 28;
-                                    break;
-                                case 1:
-                                case 3:
-                                case 5:
-                                case 7:
-                                case 8:
-                                case 10:
-                                case 12:
-                                    now.unit.day = 31;
-                                    break;
-                                default:
-                                    now.unit.day = 30;
-                                    break;
-                            }
+                        case 1: now.unit.day =  1; break;   //  1st
+                        case 2: now.unit.day = 15; break;   // 15th
+                        case 3: switch ( now.unit.month ) { // last
+                                    case 2: now.unit.day = 28; break;
+                                    case 1: case 3: case 5: case 7: case 8: case 10: case 12:
+                                        now.unit.day = 31; break;
+                                    default: now.unit.day = 30; break;
+                                }
                             break;
                     }
                     state->reminder[state->index] = now;
@@ -314,35 +315,25 @@ static void set_reminder(movement_settings_t *settings, reminder_state_t *state)
                 // Calculate the number of days left until the desired weekday
                 while (weekday != state->when) {
                     epoch += 86400;
-                    weekday = (weekday % 7) + 1;
+                    weekday = (weekday + 1) % 7;
                 }
             } else {
                 epoch += 86400 * 7;
             }
             state->reminder[state->index] = watch_utility_date_time_from_unix_time(epoch, tz);
-            switch ( state->subunits ) {
-                        case 1: // morning
-                            state->reminder[state->index].unit.hour = state->morning;
-                            state->reminder[state->index].unit.minute = 0;
-                            state->reminder[state->index].unit.second = 0;
-                            break;
-                        case 2: // noon
-                            state->reminder[state->index].unit.hour = 12;
-                            state->reminder[state->index].unit.minute = 0;
-                            state->reminder[state->index].unit.second = 0;
-                            break;
-                        case 3: // afternoon
-                            state->reminder[state->index].unit.hour = state->afternoon;
-                            state->reminder[state->index].unit.minute = 0;
-                            state->reminder[state->index].unit.second = 0;
-                            break;
-                        default: // on time
-                            break;
-                    }
-            break;
+            if ( state->subunits > 0 ) {
+                state->reminder[state->index].unit.minute = 0;
+                state->reminder[state->index].unit.second = 0;
+                if ( state->subunits > 1 ) // morning
+                    state->reminder[state->index].unit.hour = state->morning;
+                if ( state->subunits > 2 ) // noon
+                    state->reminder[state->index].unit.hour = 12;
+                if ( state->subunits > 3 ) // afternoon
+                    state->reminder[state->index].unit.hour = state->afternoon;
+            }
     }
     state->active[state->index] = true;
-    printf("%d | [%d]: %d, %d/%d/%d %02d:%02d:%02d\n", state->mnemo[state->index], state->index,
+    printf("%04d | [%d]: %d, %d/%d/%d %02d:%02d:%02d\n", state->mnemo[state->index], state->index,
         watch_utility_get_iso8601_weekday_number( state->reminder[state->index].unit.year, state->reminder[state->index].unit.month, state->reminder[state->index].unit.day),
         state->reminder[state->index].unit.day, state->reminder[state->index].unit.month, state->reminder[state->index].unit.year,
         state->reminder[state->index].unit.hour, state->reminder[state->index].unit.minute, state->reminder[state->index].unit.second
@@ -360,6 +351,9 @@ void reminder_face_setup(movement_settings_t *settings, uint8_t watch_face_index
     state->code = 0;
     state->morning = 8;
     state->afternoon = 16;
+    #if __EMSCRIPTEN__
+    srand(time(NULL));
+    #endif
     // Do any pin or peripheral setup here; this will be called whenever the watch wakes from deep sleep.
 }
 
@@ -372,6 +366,7 @@ void reminder_face_activate(movement_settings_t *settings, void *context) {
 bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, void *context) {
     reminder_state_t *state = (reminder_state_t *)context;
     char mnemonic[5];
+    uint8_t count = 0;
     switch (event.event_type) {
         case EVENT_ACTIVATE:
             if ( state->code > 0 ) {
@@ -381,15 +376,20 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                 watch_display_string("rmndme", 4);
             }
             break;
-        case EVENT_TICK:
-            // If needed, update your display here.
-            break;
         case EVENT_LIGHT_BUTTON_DOWN:
             break;
         case EVENT_LIGHT_BUTTON_UP:
-            if ( ( state->how_often == REMINDER_IN || state->how_often == REMINDER_EVERY) && state->set == 1 ) {
-                state->units = state->units + 1;
-                remind_me(settings, state);
+            switch ( state->set ) {
+                case 1:
+                    if ( ( state->how_often == REMINDER_IN || state->how_often == REMINDER_EVERY) ) {
+                        state->units = state->units + 1;
+                        remind_me(settings, state);
+                    }
+                    break;
+                case 4:
+                    state->when = (state->when + 1) % 2;
+                    remind_me(settings, state);
+                    break;
             }
             break;
         case EVENT_ALARM_BUTTON_UP:
@@ -406,11 +406,28 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                 case 2: // units
                     state->subunits = state->subunits + 1;
                     break;
+                case 4: // reminders
+                    count = 0;
+                    for (uint8_t i = 0; i < 10; i++) {
+                        if (state->active[i] == true) {
+                            count++;
+                        }
+                    }
+                    if (count == 0) {
+                        state->set = 0;
+                    } else {
+                        state->index = (state->index + 1) % 10;
+                        if ( state->active[state->index] == false )
+                            do {
+                                state->index = (state->index + 1) % 10;
+                            } while ( state->active[state->index] == false );
+                    }
+                    break;
             }
             remind_me(settings, state);
             break;
         case EVENT_ALARM_LONG_PRESS:
-            if ( state->first )
+            if ( state->first && state->set != 4 )
                 state->set = (state->set + 1) % 4;
             switch ( state->set ) {
                 case 0: // how often
@@ -423,15 +440,37 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                 case 2: // units
                     state->subunits = 0;
                     break;
+                case 3: // confirm
+                    break;
+                case 4: // settings
+                    state->active[state->index] = !state->active[state->index];
+                    break;
+            }
+            remind_me(settings, state);
+            break;
+        case EVENT_LIGHT_LONG_PRESS:
+            switch ( state->set ) {
+                case 1: // timeframe
+                    reset(state);
+                    break;
+                case 2: // units
+                    reset(state);
+                    break;
+                case 4:
+                    state->set = 0;
+                    break;
                 default:
-                    set_reminder(settings, state);
+                    state->set = 4;
+                    state->index = 0;
+                    state->when = 0;
                     break;
             }
             remind_me(settings, state);
             break;
         case EVENT_BACKGROUND_TASK:
             movement_play_alarm();
-            printf("ALARM %d\n", state->code);
+            sprintf(mnemonic, "MN    %d", state->code);
+            watch_display_string(mnemonic, 0);
             break;
         case EVENT_TIMEOUT:
             // Your watch face will receive this event after a period of inactivity. If it makes sense to resign,
