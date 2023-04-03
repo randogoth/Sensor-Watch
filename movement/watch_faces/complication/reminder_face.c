@@ -24,6 +24,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "watch_utility.h"
 #include "reminder_face.h"
 
@@ -143,6 +144,34 @@ static void remind_me(movement_settings_t *settings, reminder_state_t *state) {
             break;
     }
     watch_display_string(buf, 0);
+}
+
+static uint8_t get_random(uint8_t num_values) {
+    // Emulator: use rand. Hardware: use arc4random.
+#if __EMSCRIPTEN__
+    return rand() % num_values;
+#else
+    return arc4random_uniform(num_values);
+#endif
+}
+
+static uint16_t mnemonic_code() {
+    uint8_t digit1 = get_random(10);
+    uint8_t digit2 = get_random(10);
+    uint8_t digit3 = get_random(10);
+    uint8_t digit4 = get_random(10);
+    uint8_t repeated_digit;
+    uint8_t repeat_pos = get_random(3);
+
+    if (repeat_pos == 0) {
+        digit1 = repeated_digit;
+    } else if (repeat_pos == 1) {
+        digit2 = repeated_digit;
+    } else {
+        digit3 = repeated_digit;
+    }
+int16_t combined_number = (int16_t) (digit1 * 100 + digit2 * 10 + digit3); // Combine the digits into a three-digit number
+combined_number = combined_number * 10 + repeated_digit;  // Repeat the chosen digit to make a four-digit number
 }
 
 static void set_reminder(movement_settings_t *settings, reminder_state_t *state) {
@@ -287,7 +316,7 @@ static void set_reminder(movement_settings_t *settings, reminder_state_t *state)
             break;
     }
     state->active[state->index] = true;
-    printf("[%d]: %d, %d/%d/%d %02d:%02d:%02d\n", state->index,
+    printf("%d | [%d]: %d, %d/%d/%d %02d:%02d:%02d\n", mnemonic_code(), state->index,
         watch_utility_get_iso8601_weekday_number( state->reminder[state->index].unit.year, state->reminder[state->index].unit.month, state->reminder[state->index].unit.day),
         state->reminder[state->index].unit.day, state->reminder[state->index].unit.month, state->reminder[state->index].unit.year,
         state->reminder[state->index].unit.hour, state->reminder[state->index].unit.minute, state->reminder[state->index].unit.second
