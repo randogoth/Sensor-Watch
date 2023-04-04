@@ -100,6 +100,51 @@ void zscore_face_resign(movement_settings_t *settings, void *context) {
 #include <math.h>
 #include <stdint.h>
 
+/** @brief divination method to derive a bit from 32 TRNG bits
+ */
+uint8_t divine_bit(void) {
+    uint32_t stalks;
+    do { // modulo bias filter
+        stalks = get_true_entropy(); // get 32 TRNG bits as stalks
+    } while (stalks >= INT32_MAX || stalks <= 0);
+
+    uint8_t pile1_xor = 0;
+    uint8_t pile2_xor = 0;
+    // Divide the stalks into two piles, alternating ends
+    for (uint8_t i = 0; i < 16; i++) {
+        uint8_t left_bit = (stalks >> (31 - 2*i)) & 1;
+        uint8_t right_bit = (stalks >> (30 - 2*i)) & 1;
+        if (i % 2 == 0) {
+            pile1_xor ^= left_bit;
+            pile2_xor ^= right_bit;
+        } else {
+            pile1_xor ^= right_bit;
+            pile2_xor ^= left_bit;
+        }
+    }
+    // Take the XOR of the pile results
+    uint8_t result_xor = pile1_xor ^ pile2_xor;
+    // Output 1 if result_xor is 1, 0 otherwise
+    return result_xor;
+}
+
+/** @brief get 32 True Random Number bits
+ */
+uint32_t get_true_entropy(void) {
+    #if __EMSCRIPTEN__
+    return rand() % INT32_MAX;
+    #else
+    hri_mclk_set_APBCMASK_TRNG_bit(MCLK);
+    hri_trng_set_CTRLA_ENABLE_bit(TRNG);
+
+    while (!hri_trng_get_INTFLAG_reg(TRNG, TRNG_INTFLAG_DATARDY)); // Wait for TRNG data to be ready
+
+    hri_trng_clear_CTRLA_ENABLE_bit(TRNG);
+    hri_mclk_clear_APBCMASK_TRNG_bit(MCLK);
+    return hri_trng_read_DATA_reg(TRNG); // Read a single 32-bit word from TRNG and return it
+    #endif
+}
+
 static double compute_z_score(uint32_t* nums, size_t size) {
     // Compute the mean and standard deviation of the input numbers
     double sum = 0.0;
