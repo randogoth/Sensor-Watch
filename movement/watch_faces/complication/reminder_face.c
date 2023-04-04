@@ -203,7 +203,14 @@ static void remind_me(movement_settings_t *settings, reminder_state_t *state) {
             set_reminder(settings, state);
             reset(state);
             break;
-        case 4: // setup
+        case 4: // settings menu
+            switch ( state->units ) {
+                case 0: sprintf(buf, "     activ"); break;
+                case 1: sprintf(buf, "     times"); break;
+                case 2: sprintf(buf, "     reset"); break;
+            }
+            break;
+        case 5: // setup
             if ( state->when < 2 ) {
                 if ( state->active[state->index] ) watch_set_indicator(WATCH_INDICATOR_BELL);
                 else watch_clear_indicator(WATCH_INDICATOR_BELL);
@@ -366,7 +373,7 @@ void reminder_face_activate(movement_settings_t *settings, void *context) {
 bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, void *context) {
     reminder_state_t *state = (reminder_state_t *)context;
     char mnemonic[5];
-    uint8_t count = 0;
+    uint8_t count;
     switch (event.event_type) {
         case EVENT_ACTIVATE:
             if ( state->code > 0 ) {
@@ -386,7 +393,7 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                         remind_me(settings, state);
                     }
                     break;
-                case 4:
+                case 5:
                     state->when = (state->when + 1) % 2;
                     remind_me(settings, state);
                     break;
@@ -406,17 +413,17 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                 case 2: // units
                     state->subunits = state->subunits + 1;
                     break;
-                case 4: // reminders
-                    count = 0;
-                    for (uint8_t i = 0; i < 10; i++) {
-                        if (state->active[i] == true) {
-                            count++;
-                        }
-                    }
+                case 4:
+                    state->units = (state->units + 1) % 3;
+                    break;
+                case 5: // active reminders page
+                    // if we have zero, go back to main
+                    // ( calculated at LONG ALARM PRESS in menu before)
                     if (count == 0) {
                         state->set = 0;
                     } else {
                         state->index = (state->index + 1) % 10;
+                        // skip to active reminders
                         if ( state->active[state->index] == false )
                             do {
                                 state->index = (state->index + 1) % 10;
@@ -427,22 +434,34 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
             remind_me(settings, state);
             break;
         case EVENT_ALARM_LONG_PRESS:
-            if ( state->first && state->set != 4 )
+            if ( state->first && state->set < 4 )
                 state->set = (state->set + 1) % 4;
             switch ( state->set ) {
-                case 0: // how often
+                case 0: // 1: confirm how often
                     state->how_often = 0;
                     break;
-                case 1: // timeframe
+                case 1: // 2: confirm timeframe
                     state->when = 0;
                     state->units = 0;
                     break;
-                case 2: // units
+                case 2: // 3: confirm units
                     state->subunits = 0;
                     break;
-                case 3: // confirm
+                case 3: // 4: return to main
                     break;
-                case 4: // settings
+                case 4: // settings menu
+                    // check how many active reminders we have
+                    if ( state->units == 0 ) {
+                        count = 0;
+                        for (uint8_t i = 0; i < 10; i++)
+                            if (state->active[i] == true) count++;
+                        // if none, then selecting "active" returns to main
+                        if (count == 0) state->set = 0;
+                        // otherwise proceed to "active" page
+                        else state->set = 5;
+                    }
+                    break;
+                case 5: // settings
                     state->active[state->index] = !state->active[state->index];
                     break;
             }
@@ -457,6 +476,7 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                     reset(state);
                     break;
                 case 4:
+                case 5:
                     state->set = 0;
                     break;
                 default:
