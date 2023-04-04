@@ -58,7 +58,6 @@ typedef struct {
     uint8_t morning : 5;
     uint8_t afternoon : 5;
     uint8_t index : 4;
-    bool first;
     uint8_t when : 5;
     uint8_t how_often: 3;
     uint8_t set : 3;

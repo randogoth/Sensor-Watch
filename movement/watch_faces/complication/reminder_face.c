@@ -98,7 +98,6 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                 case 0: // SELECT HOW OFTEN ///////////////////////////////////////////////////////
                     if ( event.event_type == EVENT_ALARM_BUTTON_UP ) {
                         // flip through the options
-                        state->first = true;
                         state->how_often = (state->how_often + 1) % 4;
                     } 
                     else
