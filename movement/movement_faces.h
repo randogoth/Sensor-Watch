@@ -91,6 +91,7 @@
 #include "planetary_hours_face.h"
 #include "toss_up_face.h"
 #include "geomancy_face.h"
+#include "zscore_face.h"
 // New includes go above this line.
 
 #endif // MOVEMENT_FACES_H_
