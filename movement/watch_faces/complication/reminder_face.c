@@ -229,6 +229,16 @@ static void remind_me(movement_settings_t *settings, reminder_state_t *state) {
                 if ( state->when == 1 ) // mnemonic code
                     sprintf(buf, "  %2d  %04d", state->index + 1, state->mnemo[state->index]);
             }
+            break;
+        case 6: // time defaults menu
+            switch ( state->units ) {
+                case 0: sprintf(buf, "    mornin"); break;
+                case 1: sprintf(buf, "    afnoon"); break;
+            }
+            break;
+        case 7:
+            sprintf(buf, "      %2d00", state->units == 0 ? state->morning : state->afternoon);
+            break;
     }
     watch_display_string(buf, 0);
 }
@@ -373,116 +383,187 @@ void reminder_face_activate(movement_settings_t *settings, void *context) {
 bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, void *context) {
     reminder_state_t *state = (reminder_state_t *)context;
     char mnemonic[5];
+    uint8_t i = 0;
     uint8_t count;
+
     switch (event.event_type) {
         case EVENT_ACTIVATE:
             if ( state->code > 0 ) {
                 sprintf(mnemonic, "MN    %d", state->code);
                 watch_display_string(mnemonic, 0);
-            } else {
-                watch_display_string("rmndme", 4);
-            }
+            } else watch_display_string("rmndme", 4);
             break;
         case EVENT_LIGHT_BUTTON_DOWN:
             break;
-        case EVENT_LIGHT_BUTTON_UP:
-            switch ( state->set ) {
-                case 1:
-                    if ( ( state->how_often == REMINDER_IN || state->how_often == REMINDER_EVERY) ) {
-                        state->units = state->units + 1;
-                        remind_me(settings, state);
-                    }
-                    break;
-                case 5:
-                    state->when = (state->when + 1) % 2;
-                    remind_me(settings, state);
-                    break;
-            }
-            break;
         case EVENT_ALARM_BUTTON_UP:
-            state->first = true;
-            switch ( state->set ) {
-                case 0: // how often
-                    state->how_often = (state->how_often + 1) % 4;
-                    state->code = 0;
-                    break;
-                case 1: // timeframe
-                    state->when = (state->when + 1) % 
-                        (state->how_often == REMINDER_IN || state->how_often == REMINDER_EVERY ? 5 : 7);
-                    break;
-                case 2: // units
-                    state->subunits = state->subunits + 1;
-                    break;
-                case 4:
-                    state->units = (state->units + 1) % 3;
-                    break;
-                case 5: // active reminders page
-                    // if we have zero, go back to main
-                    // ( calculated at LONG ALARM PRESS in menu before)
-                    if (count == 0) {
-                        state->set = 0;
-                    } else {
-                        state->index = (state->index + 1) % 10;
-                        // skip to active reminders
-                        if ( state->active[state->index] == false )
-                            do {
-                                state->index = (state->index + 1) % 10;
-                            } while ( state->active[state->index] == false );
-                    }
-                    break;
-            }
-            remind_me(settings, state);
-            break;
+        case EVENT_LIGHT_BUTTON_UP:
         case EVENT_ALARM_LONG_PRESS:
-            if ( state->first && state->set < 4 )
-                state->set = (state->set + 1) % 4;
-            switch ( state->set ) {
-                case 0: // 1: confirm how often
-                    state->how_often = 0;
-                    break;
-                case 1: // 2: confirm timeframe
-                    state->when = 0;
-                    state->units = 0;
-                    break;
-                case 2: // 3: confirm units
-                    state->subunits = 0;
-                    break;
-                case 3: // 4: return to main
-                    break;
-                case 4: // settings menu
-                    // check how many active reminders we have
-                    if ( state->units == 0 ) {
-                        count = 0;
-                        for (uint8_t i = 0; i < 10; i++)
-                            if (state->active[i] == true) count++;
-                        // if none, then selecting "active" returns to main
-                        if (count == 0) state->set = 0;
-                        // otherwise proceed to "active" page
-                        else state->set = 5;
-                    }
-                    break;
-                case 5: // settings
-                    state->active[state->index] = !state->active[state->index];
-                    break;
-            }
-            remind_me(settings, state);
-            break;
         case EVENT_LIGHT_LONG_PRESS:
             switch ( state->set ) {
-                case 1: // timeframe
-                    reset(state);
+                case 0: // SELECT HOW OFTEN ///////////////////////////////////////////////////////
+                    if ( event.event_type == EVENT_ALARM_BUTTON_UP ) {
+                        // flip through the options
+                        state->first = true;
+                        state->how_often = (state->how_often + 1) % 4;
+                        state->code = 0;
+                    } 
+                    else
+                    if ( event.event_type == EVENT_ALARM_LONG_PRESS ) {
+                        // confirm selection and go to next screen
+                        state->set = (state->set + 1) % 4;
+                        state->when = 0;
+                        state->units = 0;
+                    } 
+                    else
+                    if ( event.event_type == EVENT_LIGHT_LONG_PRESS ) {
+                        // enter settings
+                        state->set = 4;
+                        state->index = 0;
+                        state->when = 0;
+                    }
                     break;
-                case 2: // units
-                    reset(state);
+                case 1: // SELECT THE TIMEFRAME ///////////////////////////////////////////////////
+                    if ( event.event_type == EVENT_ALARM_BUTTON_UP ) {
+                        // flip through the options
+                        state->when = (state->when + 1) % 
+                            (state->how_often == REMINDER_IN || state->how_often == REMINDER_EVERY ? 5 : 7);
+                    } 
+                    else
+                    if ( event.event_type == EVENT_LIGHT_BUTTON_UP ) {
+                        // change the time units
+                        if ( ( state->how_often == REMINDER_IN || state->how_often == REMINDER_EVERY) ) {
+                                state->units = state->units + 1;
+                                remind_me(settings, state);
+                            }
+                    } 
+                    else
+                    if ( event.event_type == EVENT_ALARM_LONG_PRESS ) {
+                        // confirm selection and go to next screen
+                        state->set = (state->set + 1) % 4;
+                        state->subunits = 0;
+                    } 
+                    else
+                    if ( event.event_type == EVENT_LIGHT_LONG_PRESS ) {
+                        // cancel selection and exit to main
+                        reset(state);
+                    }
                     break;
-                case 4:
-                case 5:
-                    state->set = 0;
+                case 2: // REFINE THE TIMEFRAME ///////////////////////////////////////////////////
+                    if ( event.event_type == EVENT_ALARM_BUTTON_UP ) {
+                        // flip through the options
+                        state->subunits = state->subunits + 1;
+                    }
+                    else
+                    if ( event.event_type == EVENT_ALARM_LONG_PRESS ) {
+                        // confirm selection and go to next screen
+                        state->set = (state->set + 1) % 4;
+                    }
+                    else
+                    if ( event.event_type == EVENT_LIGHT_LONG_PRESS ) {
+                        // cancel selection and exit to main
+                        reset(state);
+                    }
                     break;
-                default:
-                    state->set = 4;
-                    state->index = 0;
-                    state->when = 0;
+                case 3: // SHOW MNEMONIC CODE /////////////////////////////////////////////////////
+                    if ( event.event_type == EVENT_LIGHT_LONG_PRESS ) {
+                        // enter settings
+                        state->set = 4;
+                        state->index = 0;
+                        state->when = 0;
+                    }
+                    break;
+                case 4: // SETTINGS MENU //////////////////////////////////////////////////////////
+                    if ( event.event_type == EVENT_ALARM_BUTTON_UP ) {
+                        // flip through the options
+                        state->units = (state->units + 1) % 3;
+                    }
+                    else
+                    if ( event.event_type == EVENT_ALARM_LONG_PRESS ) {
+                        // confirm selection and go to next screen
+                        // check how many active reminders we have
+                        if ( state->units == 0 ) {
+                            count = 0;
+                            for (i = 0; i < 10; i++)
+                                if (state->active[i] == true) count++;
+                            // if none, then selecting "active" returns to main
+                            if (count == 0) state->set = 0;
+                            // otherwise proceed to "active" page
+                            else state->set = 5;
+                        }
+                        else
+                        // go to time defaults menu
+                        if ( state->units == 1 ) {
+                            state->set = 6;
+                            state->units = 0;
+                        }
+                        else
+                        // reset all reminders
+                        if ( state->units == 2 )
+                            for (i = 0; i < 10; i++) {
+                                state->active[i] = false;
+                                reset(state);
+                            }     
+                    }
+                    else
+                    if ( event.event_type == EVENT_LIGHT_LONG_PRESS ) {
+                        // exit settings
+                        state->set = 0;
+                    }
+                    break;
+                case 5: // ACTIVE REMINDERS ///////////////////////////////////////////////////////
+                    if ( event.event_type == EVENT_ALARM_BUTTON_UP ) {
+                        // flip through the active reminders
+                        // if we have zero active reminders, go back to main
+                        // ( calculated at LONG ALARM PRESS in menu before)
+                        if (count == 0) {
+                            state->set = 0;
+                        } else {
+                            state->index = (state->index + 1) % 10;
+                            // skip to active reminders
+                            if ( state->active[state->index] == false )
+                                do {
+                                    state->index = (state->index + 1) % 10;
+                                } while ( state->active[state->index] == false );
+                        }
+                    }
+                    else
+                    if ( event.event_type == EVENT_LIGHT_BUTTON_UP ) {
+                        // toggle between showing the reminder time and mnemonic code
+                        state->when = (state->when + 1) % 2;
+                        remind_me(settings, state);
+                    }
+                    else
+                    if ( event.event_type == EVENT_ALARM_LONG_PRESS ) {
+                        // deactivate an active reminder 
+                        state->active[state->index] = !state->active[state->index];
+                    }
+                    else
+                    if ( event.event_type == EVENT_LIGHT_LONG_PRESS ) {
+                        // exit settings
+                        state->set = 0;
+                    }
+                    break;
+                case 6: // TIME DEFAULTS MENU /////////////////////////////////////////////////////
+                    if ( event.event_type == EVENT_ALARM_BUTTON_UP ) {
+                        // flip through the options
+                        state->units = (state->units + 1) % 2;
+                    }
+                    else
+                    if ( event.event_type == EVENT_ALARM_LONG_PRESS ) {
+                        // confirm selection and go to next screen
+                        state->set = 7;
+                    }
+                    else
+                    if ( event.event_type == EVENT_LIGHT_LONG_PRESS ) {
+                        // exit settings
+                        state->set = 0;
+                    }
+                    break;
+                case 7: // CHANGE TIME DEFAULT ////////////////////////////////////////////////////
+                    if ( event.event_type == EVENT_ALARM_BUTTON_UP ) {
+                        // flip through the options
+                        state->units = (state->units + 1) % 12;
+                    }
                     break;
             }
             remind_me(settings, state);
@@ -493,39 +574,18 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
             watch_display_string(mnemonic, 0);
             break;
         case EVENT_TIMEOUT:
-            // Your watch face will receive this event after a period of inactivity. If it makes sense to resign,
-            // you may uncomment this line to move back to the first watch face in the list:
-            // movement_move_to_face(0);
-            break;
-        case EVENT_LOW_ENERGY_UPDATE:
-            // If you did not resign in EVENT_TIMEOUT, you can use this event to update the display once a minute.
-            // Avoid displaying fast-updating values like seconds, since the display won't update again for 60 seconds.
-            // You should also consider starting the tick animation, to show the wearer that this is sleep mode:
-            // watch_start_tick_animation(500);
+            movement_move_to_face(0);
             break;
         default:
-            // Movement's default loop handler will step in for any cases you don't handle above:
-            // * EVENT_LIGHT_BUTTON_DOWN lights the LED
-            // * EVENT_MODE_BUTTON_UP moves to the next watch face in the list
-            // * EVENT_MODE_LONG_PRESS returns to the first watch face (or skips to the secondary watch face, if configured)
-            // You can override any of these behaviors by adding a case for these events to this switch statement.
             return movement_default_loop_handler(event, settings);
     }
 
-    // return true if the watch can enter standby mode. Generally speaking, you should always return true.
-    // Exceptions:
-    //  * If you are displaying a color using the low-level watch_set_led_color function, you should return false.
-    //  * If you are sounding the buzzer using the low-level watch_set_buzzer_on function, you should return false.
-    // Note that if you are driving the LED or buzzer using Movement functions like movement_illuminate_led or
-    // movement_play_alarm, you can still return true. This guidance only applies to the low-level watch_ functions.
     return true;
 }
 
 void reminder_face_resign(movement_settings_t *settings, void *context) {
     (void) settings;
     (void) context;
-
-    // handle any cleanup before your watch face goes off-screen.
 }
 
 bool reminder_face_wants_background_task(movement_settings_t *settings, void *context) {
