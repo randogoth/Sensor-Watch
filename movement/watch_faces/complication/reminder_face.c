@@ -100,7 +100,6 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                         // flip through the options
                         state->first = true;
                         state->how_often = (state->how_often + 1) % 4;
-                        state->code = 0;
                     } 
                     else
                     if ( event.event_type == EVENT_ALARM_LONG_PRESS ) {
@@ -122,6 +121,7 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                         // flip through the options
                         state->when = (state->when + 1) % 
                             (state->how_often == REMINDER_IN || state->how_often == REMINDER_EVERY ? 5 : 7);
+                        state->units = 0;
                     } 
                     else
                     if ( event.event_type == EVENT_LIGHT_BUTTON_UP ) {
@@ -308,7 +308,6 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
             movement_play_alarm();
             sprintf(mnemonic, "MN    %d", state->code);
             watch_display_string(mnemonic, 0);
-            break;
         case EVENT_TIMEOUT:
             movement_move_to_face(0);
             break;
@@ -417,6 +416,8 @@ static void remind_me(movement_settings_t *settings, reminder_state_t *state) {
     }
 
     char buf[11];
+    bool unique = true;
+
     watch_clear_display();
     switch ( state->set ) {
 
@@ -529,7 +530,14 @@ static void remind_me(movement_settings_t *settings, reminder_state_t *state) {
 
         case 3: // NEMONIC CIPHER /////////////////////////////////////////////////////////////////
 
-            sprintf(buf, "Mn    %04d", (state->code = mnemonic_code(4)) );
+            do {
+                state->code = mnemonic_code(4);
+                for ( uint8_t i = 0; i < 10; i++ ) {
+                    if ( state->mnemo[i] == state->code )
+                        unique = false;
+                }
+            } while ( !unique );
+            sprintf(buf, "Mn    %04d", (state->code) );
             set_reminder(settings, state);
             reset(state);
             break;
@@ -648,11 +656,11 @@ static void set_reminder(movement_settings_t *settings, reminder_state_t *state)
                     if ( state->subunits > 0 ) {
                         state->reminder[state->index].unit.minute = 0;
                         state->reminder[state->index].unit.second = 0;
-                        if ( state->subunits > 1 ) // ...in the morning
+                        if ( state->subunits == 1 ) // ...in the morning
                             state->reminder[state->index].unit.hour = state->morning;
-                        if ( state->subunits > 2 ) // ...at noon
+                        if ( state->subunits == 2 ) // ...at noon
                             state->reminder[state->index].unit.hour = 12;
-                        if ( state->subunits > 3 ) // ...in the afternoon
+                        if ( state->subunits == 3 ) // ...in the afternoon
                             state->reminder[state->index].unit.hour = state->afternoon;
                     }
                     break;
@@ -739,5 +747,5 @@ static void set_reminder(movement_settings_t *settings, reminder_state_t *state)
         state->reminder[state->index].unit.day, state->reminder[state->index].unit.month, state->reminder[state->index].unit.year,
         state->reminder[state->index].unit.hour, state->reminder[state->index].unit.minute, state->reminder[state->index].unit.second
     );
-    
+
 }
