@@ -341,11 +341,11 @@ static void set_reminder(movement_settings_t *settings, reminder_state_t *state)
             if ( state->subunits > 0 ) {
                 state->reminder[state->index].unit.minute = 0;
                 state->reminder[state->index].unit.second = 0;
-                if ( state->subunits > 1 ) // morning
+                if ( state->subunits == 1 ) // morning
                     state->reminder[state->index].unit.hour = state->morning;
-                if ( state->subunits > 2 ) // noon
+                if ( state->subunits == 2 ) // noon
                     state->reminder[state->index].unit.hour = 12;
-                if ( state->subunits > 3 ) // afternoon
+                if ( state->subunits == 3 ) // afternoon
                     state->reminder[state->index].unit.hour = state->afternoon;
             }
     }
@@ -486,7 +486,13 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                             for (i = 0; i < 10; i++)
                                 if (state->active[i] == true) count++;
                             // if none, then selecting "active" returns to main
-                            if (count == 0) state->set = 0;
+                            if (count == 0) {
+                                // exit to settings menu
+                                state->set = 4;
+                                state->index = 0;
+                                state->units = 0;
+                                state->subunits = 0;
+                            }
                             // otherwise proceed to "active" page
                             else state->set = 5;
                         }
@@ -494,7 +500,9 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                         // go to time defaults menu
                         if ( state->units == 1 ) {
                             state->set = 6;
+                            state->index = 0;
                             state->units = 0;
+                            state->subunits = 0;
                         }
                         else
                         // reset all reminders
@@ -507,16 +515,22 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                     else
                     if ( event.event_type == EVENT_LIGHT_LONG_PRESS ) {
                         // exit settings
-                        state->set = 0;
+                        reset(state);
                     }
                     break;
                 case 5: // ACTIVE REMINDERS ///////////////////////////////////////////////////////
                     if ( event.event_type == EVENT_ALARM_BUTTON_UP ) {
                         // flip through the active reminders
                         // if we have zero active reminders, go back to main
-                        // ( calculated at LONG ALARM PRESS in menu before)
+                        count = 0;
+                        for (i = 0; i < 10; i++)
+                            if (state->active[i] == true) count++;
                         if (count == 0) {
-                            state->set = 0;
+                            // exit to settings menu
+                            state->set = 4;
+                            state->index = 0;
+                            state->units = 0;
+                            state->subunits = 0;
                         } else {
                             state->index = (state->index + 1) % 10;
                             // skip to active reminders
@@ -539,8 +553,11 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                     }
                     else
                     if ( event.event_type == EVENT_LIGHT_LONG_PRESS ) {
-                        // exit settings
-                        state->set = 0;
+                        // exit to settings menu
+                        state->set = 4;
+                        state->index = 0;
+                        state->units = 0;
+                        state->subunits = 0;
                     }
                     break;
                 case 6: // TIME DEFAULTS MENU /////////////////////////////////////////////////////
@@ -552,17 +569,41 @@ bool reminder_face_loop(movement_event_t event, movement_settings_t *settings, v
                     if ( event.event_type == EVENT_ALARM_LONG_PRESS ) {
                         // confirm selection and go to next screen
                         state->set = 7;
+                        state->subunits = 0;
                     }
                     else
                     if ( event.event_type == EVENT_LIGHT_LONG_PRESS ) {
-                        // exit settings
-                        state->set = 0;
+                        // exit to settings menu
+                        state->set = 4;
+                        state->index = 0;
+                        state->units = 0;
+                        state->subunits = 0;
                     }
                     break;
                 case 7: // CHANGE TIME DEFAULT ////////////////////////////////////////////////////
                     if ( event.event_type == EVENT_ALARM_BUTTON_UP ) {
                         // flip through the options
-                        state->units = (state->units + 1) % 12;
+                        if ( state->units == 0 ) // morning
+                            state->morning = (state->morning + 1) % 12;
+                        else
+                        if ( state->units == 1 ) // afternoon
+                            state->afternoon = ((state->afternoon + 1) % 12) + 12;
+                    }
+                    else
+                    if ( event.event_type == EVENT_ALARM_LONG_PRESS ) {
+                        // confirm selection and go back to settings menu screen
+                        state->set = 6;
+                        state->index = 0;
+                        state->units = 0;
+                        state->subunits = 0;
+                    }
+                    else
+                    if ( event.event_type == EVENT_LIGHT_LONG_PRESS ) {
+                        // exit to settings menu
+                        state->set = 4;
+                        state->index = 0;
+                        state->units = 0;
+                        state->subunits = 0;
                     }
                     break;
             }
