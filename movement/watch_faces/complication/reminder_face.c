@@ -39,7 +39,6 @@ const char the_day[4][7] = { " on t", "mornin", "  noon", "afnoon" };
 const char the_week[7][7] = { "on d", "   sun", "   mon", "   tue", "   wed", "   thu", "   fri", "   sat",  };
 const char the_month[4][7] = { "  on d", "   1st", "  15th", "  last"  };
 const char frame[4][3] = { "in", "on", "ev", "ea"};
-const char month[12][3] = { "JA", "FE", "MR", "AP", "M4", "JN", "JL", "AU", "SE", "OC", "NO", "DE" };
 
 // STATIC DECLARATIONS ////////////////////////////////////////////////////////////////////////////
 
