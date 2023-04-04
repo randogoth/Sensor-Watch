@@ -97,3 +97,30 @@ void zscore_face_resign(movement_settings_t *settings, void *context) {
     // handle any cleanup before your watch face goes off-screen.
 }
 
+#include <math.h>
+#include <stdint.h>
+
+static double compute_z_score(uint32_t* nums, size_t size) {
+    // Compute the mean and standard deviation of the input numbers
+    double sum = 0.0;
+    for (size_t i = 0; i < size; i++) {
+        sum += nums[i];
+    }
+    double mean = sum / size;
+
+    double variance = 0.0;
+    for (size_t i = 0; i < size; i++) {
+        variance += pow(nums[i] - mean, 2);
+    }
+    variance /= size;
+    double std_dev = sqrt(variance);
+
+    // Compute the z-score using the formula: (x - mean) / std_dev
+    double z_score = 0.0;
+    for (size_t i = 0; i < size; i++) {
+        z_score += (nums[i] - mean) / std_dev;
+    }
+    z_score /= size;
+
+    return z_score;
+}
