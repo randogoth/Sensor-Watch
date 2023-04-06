@@ -36,7 +36,8 @@
 
 typedef struct {
     // Anything you need to keep track of, put it here!
-    uint8_t unused;
+    uint32_t numbers[500];
+    uint16_t index;
 } zscore_state_t;
 
 void zscore_face_setup(movement_settings_t *settings, uint8_t watch_face_index, void ** context_ptr);

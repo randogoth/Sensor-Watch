@@ -25,6 +25,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include "zscore_face.h"
+#include <math.h>
+#if __EMSCRIPTEN__
+#include <time.h>
+#else
+#include "saml22j18a.h"
+#endif
+
+static double compute_z_score(uint32_t* nums, size_t size);
+static double autocorrelation(uint32_t* bitstream, int n, int lag);
+static uint32_t get_true_entropy(void);
+static uint32_t entropy(void);
 
 void zscore_face_setup(movement_settings_t *settings, uint8_t watch_face_index, void ** context_ptr) {
     (void) settings;
@@ -45,13 +56,25 @@ void zscore_face_activate(movement_settings_t *settings, void *context) {
 
 bool zscore_face_loop(movement_event_t event, movement_settings_t *settings, void *context) {
     zscore_state_t *state = (zscore_state_t *)context;
-
+    double z_score;
+    uint32_t e;
+    char sign;
+    char buf[11];
     switch (event.event_type) {
         case EVENT_ACTIVATE:
-            // Show your initial UI here.
+            movement_request_tick_frequency(16);
             break;
         case EVENT_TICK:
-            // If needed, update your display here.
+            state->index = (state->index + 1) % 500;
+            e = entropy();
+            state->numbers[state->index] = e;
+            if ( state->index == 0 ) {
+                z_score += compute_z_score(state->numbers, 500);
+                uint8_t integer = (uint8_t)abs(z_score);
+                uint16_t decimal = (uint16_t)abs(((z_score - integer) * 10000));
+                sprintf(buf, "Z  %c%1d,%04d", z_score < 0 ? '-' : ' ', integer, decimal);
+            }
+            watch_display_string(buf, 0);
             break;
         case EVENT_LIGHT_BUTTON_UP:
             // You can use the Light button for your own purposes. Note that by default, Movement will also
@@ -102,35 +125,18 @@ void zscore_face_resign(movement_settings_t *settings, void *context) {
 
 /** @brief divination method to derive a bit from 32 TRNG bits
  */
-uint8_t divine_bit(void) {
-    uint32_t stalks;
+static uint32_t entropy(void) {
+    uint32_t entropy;
     do { // modulo bias filter
-        stalks = get_true_entropy(); // get 32 TRNG bits as stalks
-    } while (stalks >= INT32_MAX || stalks <= 0);
+        entropy = get_true_entropy(); // get 32 TRNG bits as stalks
+    } while (entropy >= INT32_MAX);
 
-    uint8_t pile1_xor = 0;
-    uint8_t pile2_xor = 0;
-    // Divide the stalks into two piles, alternating ends
-    for (uint8_t i = 0; i < 16; i++) {
-        uint8_t left_bit = (stalks >> (31 - 2*i)) & 1;
-        uint8_t right_bit = (stalks >> (30 - 2*i)) & 1;
-        if (i % 2 == 0) {
-            pile1_xor ^= left_bit;
-            pile2_xor ^= right_bit;
-        } else {
-            pile1_xor ^= right_bit;
-            pile2_xor ^= left_bit;
-        }
-    }
-    // Take the XOR of the pile results
-    uint8_t result_xor = pile1_xor ^ pile2_xor;
-    // Output 1 if result_xor is 1, 0 otherwise
-    return result_xor;
+    return entropy;
 }
 
 /** @brief get 32 True Random Number bits
  */
-uint32_t get_true_entropy(void) {
+static uint32_t get_true_entropy(void) {
     #if __EMSCRIPTEN__
     return rand() % INT32_MAX;
     #else
@@ -152,20 +158,41 @@ static double compute_z_score(uint32_t* nums, size_t size) {
         sum += nums[i];
     }
     double mean = sum / size;
-
     double variance = 0.0;
     for (size_t i = 0; i < size; i++) {
         variance += pow(nums[i] - mean, 2);
     }
     variance /= size;
     double std_dev = sqrt(variance);
-
     // Compute the z-score using the formula: (x - mean) / std_dev
     double z_score = 0.0;
     for (size_t i = 0; i < size; i++) {
-        z_score += (nums[i] - mean) / std_dev;
+        z_score = (nums[i] - mean) / (std_dev / sqrt(size));
     }
-    z_score /= size;
-
     return z_score;
+}
+
+static double autocorrelation(uint32_t* bitstream, int n, int lag) {
+    double sum = 0.0;
+    double mean = 0.0;
+    double variance = 0.0;
+
+    // Calculate the mean of the bitstream
+    for (int i = 0; i < n; i++) {
+        mean += (double) bitstream[i];
+    }
+    mean /= n;
+
+    // Calculate the variance of the bitstream
+    for (int i = 0; i < n; i++) {
+        variance += pow((double) bitstream[i] - mean, 2);
+    }
+    variance /= (n - 1);
+
+    // Calculate the autocorrelation at the given lag
+    for (int i = 0; i < n - lag; i++) {
+        sum += ((double) bitstream[i] - mean) * ((double) bitstream[i + lag] - mean);
+    }
+
+    return sum / ((n - lag) * variance);
 }
