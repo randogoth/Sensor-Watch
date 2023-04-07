@@ -36,6 +36,84 @@
 
 // STATIC FUNCTIONS AND CONSTANTS /////////////////////////////////////////////
 
+static uint16_t jewish_month(uint16_t year, uint16_t days_since_rosh_hashanah);
+static uint16_t jewish_day(uint16_t year, uint16_t days_since_rosh_hashanah);
+static uint16_t rosh_hashanah_day(uint16_t year);
+
+/*                                   aleph       bet         gimel       dalet       hay         vav         zayin       khet        tet         yud         kaf        */
+static const uint8_t alefbet[22] = { 0b01011011, 0b00100111, 0b01101011, 0b00100011, 0b00101011, 0b00000011, 0b00111000, 0b00111011, 0b00011111, 0b00000001, 0b01000110, 
+                                     0b01010110, 0b01001110, 0b00000111, 0b00111111, 0b01010111, 0b01110111, 0b01010011, 0b01111001, 0b01000010, 0b01111100, 0b01001010 };
+/*                                   lamed       mem         nun         samekh      ayin        pay/fay     tsadi       kuf         resh        shin        tav        */
+
+static void glyph(uint8_t glyph, uint8_t pos) {
+    /*
+          5
+         ---
+      4 | 6 | 0
+         ---
+      3 |   | 1
+         ---
+          2
+    */
+
+   typedef struct {
+    uint8_t com;
+    uint8_t seg;
+    } digit;
+
+    digit pixel[8][10] = {
+    /*        0        1        2        3        4        5        6        7        8        9 */
+    /* 0 */{{1, 13}, {1, 11}, {0,  9}, {1,  7}, {2, 19}, {2, 21}, {2, 23}, {2, 10}, {2,  3}, {2,  5}},
+    /* 1 */{{2, 13}, {1, 11}, {2,  9}, {2,  7}, {0, 19}, {1, 21}, {0, 23}, {0,  1}, {0,  4}, {1,  6}},
+    /* 2 */{{2, 15}, {2, 11}, {1,  9}, {2,  6}, {1, 18}, {0, 21}, {0, 22}, {0,  0}, {0,  3}, {0,  6}},
+    /* 3 */{{2, 14}, {1, 12}, {0, 10}, {2,  8}, {0, 18}, {0, 20}, {1, 22}, {1,  0}, {0,  2}, {0,  5}},
+    /* 4 */{{0, 14}, {1, 12}, {NULL, NULL }, {0,  8}, {2, 18}, {1, 17}, {2, 22}, {2,  0}, {1,  2}, {1,  4}},
+    /* 5 */{{0, 13}, {0, 11}, {1,  9}, {0,  7}, {1, 18}, {2, 20}, {0, 22}, {2,  1}, {2,  2}, {2,  4}},
+    /* 6 */{{1, 15}, {2, 12}, {1,  9}, {1,  8}, {1, 19}, {1, 20}, {1, 23}, {1,  1}, {1,  3}, {1,  5}},
+    /* 7 */{{1, 14}, {NULL, NULL }, {NULL, NULL }, {NULL, NULL }, {NULL, NULL }, {NULL, NULL }, {NULL, NULL }, {NULL, NULL }, {NULL, NULL }, {NULL, NULL }}
+    };
+
+    for (uint8_t i = 0; i < 8; i++) {
+        if ( (glyph >> (7-i)) & 0x01 ) { // is the bit a 1?
+            if ( i > 0 ) {
+                watch_set_pixel( pixel[7-i][pos].com, pixel[7-i][pos].seg );
+            }
+        } else {
+        }
+    }
+    
+}
+
+static void to_hebrew_numeral(uint16_t n, uint8_t* hebrew) {
+
+    //printf("(%d) : ", n);
+    
+    static const uint8_t heb_values[] = {
+        0, 17, 16, 13, 12, 10, 21, 20, 19, 18,
+        17, 16, 15, 14, 13, 12, 11, 10, 9, 8,
+        7, 6, 5, 4, 3, 2, 1, 0
+    };
+
+    static const uint8_t heb_numeral_values[] = {
+        1000, 900, 800, 700, 600, 500, 400, 300, 200, 100,
+        90, 80, 70, 60, 50, 40, 30, 20, 10, 9,
+        8, 7, 6, 5, 4, 3, 2, 1
+    };
+
+    uint8_t index = 0;
+    while (n > 0 && index < 28) {
+        if (n >= heb_numeral_values[index]) {
+            hebrew[index] = heb_values[index];
+            printf("%d, ", heb_values[index]),
+            n -= heb_numeral_values[index];
+        } else {
+            index++;
+        }
+    }
+    printf("\n");
+}
+
+
 /** @details solar phase can be a day phase between sunrise and sunset or an alternating night phase.
  *  This function calculates the start and end of the current phase based on a given geographic location.
  */
@@ -126,8 +204,7 @@ static void _planetary_solar_phase(movement_settings_t *settings, halaqim_state_
 static void _planetary_time(movement_event_t event, movement_settings_t *settings, halaqim_state_t *state) {
     char buf[14];
     char ruler[3];
-    double night_hour_count = 0.0;
-    uint8_t weekday, planet, planetary_hour;
+    uint8_t weekday, planet, planetary_hour, day;
     double hour_duration, current_hour, current_heleq, current_rega;
 
     // get current time and convert to UTC
@@ -146,29 +223,22 @@ static void _planetary_time(movement_event_t event, movement_settings_t *setting
 
     // RTC only provides full second precision, so we have to manually add subseconds with each tick
     current_hour = ((( watch_utility_date_time_to_unix_time(state->scratch, 0) ) + event.subsecond * (state->regaim ? 0.0303030303 : 0.111111111)) - state->phase_start ) / hour_duration;
-    planetary_hour = floor(current_hour) + ( state->night ? 0 : 12 );
-    current_hour  += night_hour_count; //adjust for 24hr display
     current_heleq = modf(current_hour, &current_hour) * 1080.0;
     current_rega = modf(current_heleq, &current_heleq) * 76.0;
 
-    // the day changes after sunrise, so if we are at night it is yesterday's planetary day
-    // hence we take the datetime object of when the last solar phase started as the current day
-    // and then fill in the hours and minutes
-    state->scratch = watch_utility_date_time_from_unix_time(state->phase_start, 0);
-    state->scratch.unit.hour = floor(current_hour);
-    state->scratch.unit.minute = floor(current_heleq);
-    state->scratch.unit.second = floor(current_rega);
-
     // what weekday is it (0 - 6)
+    state->scratch = watch_utility_date_time_from_unix_time( state->night ? state->phase_end : state->phase_start, 0);
     weekday = watch_utility_get_iso8601_weekday_number(state->scratch.unit.year, state->scratch.unit.month, state->scratch.unit.day) - 1;
-    
+
     watch_set_colon();
 
     if ( state->regaim )
         sprintf(buf, "%02d  %2d%04d", (uint8_t)floor(current_rega), (uint8_t)floor(current_hour), (uint8_t)floor(current_heleq));
     else
         sprintf(buf, "ZM  %2d%04d", (uint8_t)floor(current_hour), (uint8_t)floor(current_heleq));
+
     watch_display_string(buf, 0);
+    glyph( alefbet[weekday], 3 );
 
 }
 
@@ -238,4 +308,3 @@ void halaqim_face_resign(movement_settings_t *settings, void *context) {
     (void) context;
     movement_request_tick_frequency( 1 );
 }
-
