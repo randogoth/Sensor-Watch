@@ -37,6 +37,7 @@
 #define THRESHOLD_SHANNON 0.97 // below
 #define THRESHOLD_RUNS 0.05 // below
 
+static void show_data(char l1, char l2, double unit, char *buf, zscore_state_t *state);
 static double zscore(uint32_t *bits, size_t n);
 static double compute_z_score(uint32_t* nums, size_t size);
 static void _get_true_entropy(uint32_t* buffer, size_t num_words, zscore_state_t *state);
@@ -53,25 +54,34 @@ void zscore_face_setup(movement_settings_t *settings, uint8_t watch_face_index, 
         *context_ptr = malloc(sizeof(zscore_state_t));
         memset(*context_ptr, 0, sizeof(zscore_state_t));
         // Do any one-time tasks in here; the inside of this conditional happens only at boot.
-    }    
-    // Do any pin or peripheral setup here; this will be called whenever the watch wakes from deep sleep.
+    }
+    zscore_state_t *state = (zscore_state_t *)*context_ptr;
+    seed_prng(&state->prng, time(NULL));
+    memset(*state->highest, 0, sizeof(state->highest));
+    state->mode = 0;
+    state->threshold[0] = THRESHOLD_ZSCORE;
+    state->threshold[1] = THRESHOLD_AUTOCORRELATION;
+    state->threshold[2] = THRESHOLD_SHANNON;
+    state->threshold[3] = THRESHOLD_RUNS;
+    state->highest[0][0] = 0;
+    state->highest[1][1] = 0;
+    state->highest[2][2] = 10;
+    state->highest[3][3] = 10;
 }
 
 void zscore_face_activate(movement_settings_t *settings, void *context) {
     (void) settings;
     zscore_state_t *state = (zscore_state_t *)context;
     seed_prng(&state->prng, time(NULL));
-    state->highest[] = {0};
-    state->peak = true;
+
     // Handle any tasks related to your watch face coming on screen.
 }
 
 bool zscore_face_loop(movement_event_t event, movement_settings_t *settings, void *context) {
     zscore_state_t *state = (zscore_state_t *)context;
     double z_score, correl, shannon, runs;
-    uint32_t e;
-    char sign;
     char buf[11];
+    uint8_t index;
     switch (event.event_type) {
         case EVENT_ACTIVATE:
             movement_request_tick_frequency(8);
@@ -79,49 +89,90 @@ bool zscore_face_loop(movement_event_t event, movement_settings_t *settings, voi
         case EVENT_TICK:
             _get_true_entropy(state->numbers, 512/32, state);
             remove_bias(state->numbers, 512);
-            z_score = zscore(state->numbers, 512);
-            correl = autocorrelation(state->numbers, 512, 100);
+            // analyze entropy
+            z_score = fabs(zscore(state->numbers, 512));
+            correl = fabs(autocorrelation(state->numbers, 512, 50));
             shannon = shannon_entropy(state->numbers, 512);
             runs = runs_test(state->numbers, 512);
-            printf("Z-Score: %.3f\nAutocorrelation: %.3f\nShannon Entropy: %.3f\nRuns: %.3f\n", (double)z_score, correl, shannon, runs);
-            if ( 
-                z_score >= THRESHOLD_ZSCORE               || 
-                z_score <= THRESHOLD_ZSCORE * -1          ||
-                correl  >= THRESHOLD_AUTOCORRELATION      || 
-                correl  <= THRESHOLD_AUTOCORRELATION * -1 ||
-                shannon <= THRESHOLD_SHANNON              ||
-                runs    <= THRESHOLD_RUNS
-            ) {
-                state->index++;
-                state->highest[state->index][0] = z_score;
-                state->highest[state->index][1] = correl;
-                state->highest[state->index][2] = shannon;
-                state->highest[state->index][3] = runs;
-                state->timestamp[state->index] = watch_rtc_get_date_time();
+            //printf("Z-Score: %.3f\nAutocorrelation: %.3f\nShannon Entropy: %.3f\nRuns: %.3f\n", (double)z_score, correl, shannon, runs);
+            if (z_score > state->highest[0][0]) {
+                index = 0;
+                state->highest[index][0] = z_score;
+                state->highest[index][1] = correl;
+                state->highest[index][2] = shannon;
+                state->highest[index][3] = runs;
+                state->timestamp[index] = watch_rtc_get_date_time();
+            } 
+            if (correl  > state->highest[1][1]) {
+                index = 1;
+                state->highest[index][0] = z_score;
+                state->highest[index][1] = correl;
+                state->highest[index][2] = shannon;
+                state->highest[index][3] = runs;
+                state->timestamp[index] = watch_rtc_get_date_time();
             }
-            uint8_t integer = (uint8_t)abs(z_score);
-            uint16_t decimal = (uint16_t)abs(((z_score - integer) * 10000));
-            if ( state->ts ) {
-                watch_set_colon();
-                sprintf(buf, "%-2d%2d%2d%02d%02d", state->timestamp.unit.month, state->timestamp.unit.day, state->timestamp.unit.hour, state->timestamp.unit.minute, state->timestamp.unit.second);
-                watch_display_string(buf, 0);
-            } else {
-                watch_clear_colon();
-                sprintf(buf, "   %c%1d,%04d", z_score < 0 ? '-' : ' ', integer, decimal);
-                watch_display_string(buf, 0);
-                watch_set_pixel(0, 14);
-                watch_set_pixel(1, 13);
-                watch_set_pixel(1, 14);
-                watch_set_pixel(1, 15);
+            if (shannon < state->highest[2][2]) {
+                index = 2;
+                state->highest[index][0] = z_score;
+                state->highest[index][1] = correl;
+                state->highest[index][2] = shannon;
+                state->highest[index][3] = runs;
+                state->timestamp[index] = watch_rtc_get_date_time();
             }
+            if (runs    < state->highest[3][3]) {
+                index = 3;
+                state->highest[index][0] = z_score;
+                state->highest[index][1] = correl;
+                state->highest[index][2] = shannon;
+                state->highest[index][3] = runs;
+                state->timestamp[index] = watch_rtc_get_date_time();
+            }
+
+            switch ( state->mode ) {
+                case 0:
+                    show_data('Z', '-', z_score, buf, state);
+                    break;
+                case 1:
+                    show_data('A', 'C', correl, buf, state);
+                    break;
+                case 2:
+                    show_data('S', 'E', shannon, buf, state);
+                    break;
+                case 3:
+                    show_data('R', 'U', runs, buf, state);
+                    break;
+                case 4:
+                    watch_set_colon();
+                    if ( state->live )
+                        state->timestamp[state->index] = watch_rtc_get_date_time();
+                    sprintf(buf, "%-2d%2d%2d%02d%02d", 
+                        state->timestamp[state->index].unit.month, 
+                        state->timestamp[state->index].unit.day, 
+                        state->timestamp[state->index].unit.hour, 
+                        state->timestamp[state->index].unit.minute, 
+                        state->timestamp[state->index].unit.second
+                    );
+                    break;
+            }
+            watch_display_string(buf, 0);
             break;
         case EVENT_LIGHT_BUTTON_DOWN:
             break;
         case EVENT_LIGHT_BUTTON_UP:
-            state->ts = !state->ts;
+            state->mode = (state->mode + 1) % 5;
             break;
         case EVENT_ALARM_BUTTON_UP:
-            state->peak = !state->peak;
+            state->index = (state->index + 1) % 4;
+            state->mode = state->index;
+            break;
+        case EVENT_ALARM_LONG_PRESS:
+            state->live = !state->live;
+            if ( state->live ) {
+                state->highest[0][0] = 0;
+                state->highest[1][1] = 0;
+                state->highest[2][2] = 10;
+                state->highest[3][3] = 10;
+            }
             break;
         case EVENT_LIGHT_LONG_PRESS:
             movement_illuminate_led();
@@ -144,6 +195,18 @@ void zscore_face_resign(movement_settings_t *settings, void *context) {
     (void) context;
 
     // handle any cleanup before your watch face goes off-screen.
+}
+
+static void show_data(char l1, char l2, double unit, char *buf, zscore_state_t *state) {
+    watch_clear_colon();
+    if ( !state->live )
+        unit = state->highest[state->index][state->mode];
+    sprintf(buf, "%c%c%2d%1d,%04d", l1, l2, state->live ? 0 : state->index + 1, (uint8_t)abs(unit), (uint16_t)(fabs((unit - floor(unit)) * 10000.0)));
+        if ( 
+            (state->mode < 2 && unit > state->threshold[state->mode]) ||
+            (state->mode > 1 && unit < state->threshold[state->mode])
+        ) watch_set_indicator(WATCH_INDICATOR_BELL);
+        else watch_clear_indicator(WATCH_INDICATOR_BELL);
 }
 
 /** @brief get 32 True Random Number bits
@@ -227,7 +290,7 @@ static void remove_bias(uint32_t* nums, size_t size) {
 static double zscore(uint32_t *bits, size_t n) {
     double sum = 0.0;
     double mean, variance, stddev;
-    int i;
+    size_t i;
 
     // Calculate the mean
     for (i = 0; i < n; i++) {
