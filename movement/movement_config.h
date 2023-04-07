@@ -29,12 +29,10 @@
 
 const watch_face_t watch_faces[] = {
     simple_clock_face,
-    zscore_face,
-    world_clock_face,
-    world_clock_face,
     dual_timer_face,
     toss_up_face,
     randonaut_face,
+    zscore_face,
     thermistor_readout_face,
     thermistor_logging_face,
     sunrise_sunset_face,
