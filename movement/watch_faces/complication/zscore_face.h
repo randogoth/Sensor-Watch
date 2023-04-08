@@ -43,12 +43,13 @@ typedef struct {
     // Anything you need to keep track of, put it here!
     uint32_t numbers[512];
     uint8_t index;
+    uint16_t tick;
     uint8_t mode;
-    double highest[4][4]; // 0 = z-score, 1 = autocorrelation, 2 = shannon, 3 = runs
-    watch_date_time timestamp[4];
-    double threshold[4];
+    double highest[3][3]; // 0 = z-score, 1 = autocorrelation, 2 = shannon, 3 = runs
+    watch_date_time timestamp[3];
+    double threshold[3];
     prng_t prng;
-    bool live;
+    bool run;
 } zscore_state_t;
 
 void zscore_face_setup(movement_settings_t *settings, uint8_t watch_face_index, void ** context_ptr);
